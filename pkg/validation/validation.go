@@ -48,7 +48,7 @@ func getImageInfo(ref string) (name, tag, digest string, err error) {
 
 	switch len(parts) {
 	case nameOnly:
-		parts[1] = "latest"
+		parts = append(parts, "latest")
 		fallthrough
 	case nameAndTag:
 		tag = parts[1]
