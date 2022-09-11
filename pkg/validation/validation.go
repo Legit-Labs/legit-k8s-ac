@@ -72,7 +72,7 @@ func getImageInfo(ref string) (name, tag, digest string, err error) {
 }
 
 func newImage(container corev1.Container, allowTagged bool) (*ImageData, error) {
-	name, tag, digest, err := getImageInfo(container.Name)
+	name, tag, digest, err := getImageInfo(container.Image)
 	if err != nil {
 		return nil, err
 	}
