@@ -36,8 +36,15 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 			podName = pod.ObjectMeta.GenerateName
 		}
 	}
+
+	containers := pod.Spec.Containers
+	images := make([]string, 0, len(containers))
+	for _, container := range containers {
+		images = append(images, container.Image)
+	}
+
 	log := logrus.WithField("pod_name", podName)
-	log.Print("delete me")
+	log.Print("images: %v", images)
 
 	// list of all validations to be applied to the pod
 	validations := []podValidator{
