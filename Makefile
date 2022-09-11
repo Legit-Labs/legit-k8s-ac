@@ -12,7 +12,7 @@ build:
 .PHONY: docker-build
 docker-build:
 	@echo "\n📦 Building legit-security Docker image..."
-	docker build -t legit-security:latest .
+	DOCKER_BUILDKIT=1 docker build -t legit-security:latest .
 
 # From this point `kind` is required
 .PHONY: cluster
