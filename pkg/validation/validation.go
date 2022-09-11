@@ -5,7 +5,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// Validator is a container for mutation
+// Validator is a container for validation
 type Validator struct {
 	Logger *logrus.Entry
 }
@@ -15,7 +15,7 @@ func NewValidator(logger *logrus.Entry) *Validator {
 	return &Validator{Logger: logger}
 }
 
-// podValidators is an interface used to group functions mutating pods
+// podValidators is an interface used to group functions validating pods
 type podValidator interface {
 	Validate(*corev1.Pod) (validation, error)
 	Name() string

@@ -1,6 +1,6 @@
 // Package admission handles kubernetes admissions,
 // it takes admission requests and returns admission reviews;
-// for example, to mutate or validate pods
+// for example, to validate pods
 package admission
 
 import (
@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Legit-Labs/legit-k8s-ac/pkg/mutation"
 	"github.com/Legit-Labs/legit-k8s-ac/pkg/validation"
 	"github.com/sirupsen/logrus"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -23,26 +22,7 @@ type Admitter struct {
 	Request *admissionv1.AdmissionRequest
 }
 
-// MutatePodReview takes an admission request and mutates the pod within,
-// it returns an admission review with mutations as a json patch (if any)
-func (a Admitter) MutatePodReview() (*admissionv1.AdmissionReview, error) {
-	pod, err := a.Pod()
-	if err != nil {
-		e := fmt.Sprintf("could not parse pod in admission review request: %v", err)
-		return reviewResponse(a.Request.UID, false, http.StatusBadRequest, e), err
-	}
-
-	m := mutation.NewMutator(a.Logger)
-	patch, err := m.MutatePodPatch(pod)
-	if err != nil {
-		e := fmt.Sprintf("could not mutate pod: %v", err)
-		return reviewResponse(a.Request.UID, false, http.StatusBadRequest, e), err
-	}
-
-	return patchReviewResponse(a.Request.UID, patch)
-}
-
-// MutatePodReview takes an admission request and validates the pod within
+// ValidatePodReview takes an admission request and validates the pod within
 // it returns an admission review
 func (a Admitter) ValidatePodReview() (*admissionv1.AdmissionReview, error) {
 	pod, err := a.Pod()
