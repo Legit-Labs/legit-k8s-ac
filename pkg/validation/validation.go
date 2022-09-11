@@ -1,6 +1,10 @@
 package validation
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -26,6 +30,68 @@ type validation struct {
 	Reason string
 }
 
+type ImageData struct {
+	Name   string
+	Tag    string
+	Digest string
+}
+
+func getImageInfo(ref string) (name, tag, digest string, err error) {
+	const (
+		nameOnly      = 1
+		nameAndTag    = 2
+		nameAndDigest = 3
+	)
+
+	parts := strings.Split(ref, ":")
+	name = parts[0]
+
+	switch len(parts) {
+	case nameOnly:
+		parts[1] = "latest"
+		fallthrough
+	case nameAndTag:
+		tag = parts[1]
+		digest, err = crane.Digest(ref)
+		if err != nil {
+			err = fmt.Errorf("failed to get digest for ref %v: %v", ref, err)
+			return
+		}
+	case nameAndDigest:
+		if parts[1] != "sha256" {
+			err = fmt.Errorf("unexpected ref format: %v", ref)
+			return
+		}
+		digest = parts[2]
+	default:
+		err = fmt.Errorf("unexpected ref format: %v", ref)
+		return
+	}
+
+	return
+}
+
+func newImage(container corev1.Container, allowTagged bool) (*ImageData, error) {
+	name, tag, digest, err := getImageInfo(container.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !allowTagged && tag != "" {
+		return nil, fmt.Errorf("referencing a tagged image is not allowed (%v)", tag)
+	}
+
+	return &ImageData{
+		Name:   name,
+		Tag:    tag,
+		Digest: digest,
+	}, nil
+}
+
+func invalidPod(reason string) validation {
+	return validation{Valid: false, Reason: reason}
+}
+
 // ValidatePod returns true if a pod is valid
 func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 	var podName string
@@ -38,9 +104,14 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 	}
 
 	containers := pod.Spec.Containers
-	images := make([]string, 0, len(containers))
+	allowTagged := true // TODO from cli
+	images := make([]ImageData, 0, len(containers))
 	for _, container := range containers {
-		images = append(images, container.Image)
+		image, err := newImage(container, allowTagged)
+		if err != nil {
+			return invalidPod(fmt.Sprintf("image %v is invalid: %v", container.Name, err)), err
+		}
+		images = append(images, *image)
 	}
 
 	log := logrus.WithField("pod_name", podName)
@@ -56,10 +127,10 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 		var err error
 		vp, err := v.Validate(pod)
 		if err != nil {
-			return validation{Valid: false, Reason: err.Error()}, err
+			return invalidPod(err.Error()), err
 		}
 		if !vp.Valid {
-			return validation{Valid: false, Reason: vp.Reason}, err
+			return invalidPod(vp.Reason), err
 		}
 	}
 
