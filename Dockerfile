@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build,sharing=private \
   go build -o bin/admission-webhook .
 
 # ---
-FROM scratch AS run
+FROM ubuntu AS run
 
 COPY --from=build /work/bin/admission-webhook /usr/local/bin/
 
