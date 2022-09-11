@@ -8,15 +8,12 @@ import (
 	"os"
 
 	"github.com/Legit-Labs/legit-k8s-ac/pkg/admission"
-	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/sirupsen/logrus"
 	admissionv1 "k8s.io/api/admission/v1"
 )
 
 func main() {
 	setLogger()
-
-	fmt.Println(crane.Digest("busybox:latest"))
 
 	// handle our core application
 	http.HandleFunc("/validate-pods", ServeValidatePods)
