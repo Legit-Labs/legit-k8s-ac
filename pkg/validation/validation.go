@@ -36,35 +36,28 @@ type ImageData struct {
 	Digest string
 }
 
+func getImageWithDigest(ref string) (name, digest string) {
+	parts := strings.Split(ref, "@")
+	name = parts[0]
+	digest = parts[1]
+	return
+}
+
 func getImageInfo(ref string) (name, tag, digest string, err error) {
-	const (
-		nameOnly      = 1
-		nameAndTag    = 2
-		nameAndDigest = 3
-	)
+	if strings.Contains(ref, "@") { // referenced by digest
+		name, digest = getImageWithDigest(ref)
+		return
+	}
+	if !strings.Contains(ref, ":") { // no tag defaults to latest
+		ref += ":latest"
+	}
 
 	parts := strings.Split(ref, ":")
 	name = parts[0]
-
-	switch len(parts) {
-	case nameOnly:
-		parts = append(parts, "latest")
-		fallthrough
-	case nameAndTag:
-		tag = parts[1]
-		digest, err = crane.Digest(ref)
-		if err != nil {
-			err = fmt.Errorf("failed to get digest for ref %v: %v", ref, err)
-			return
-		}
-	case nameAndDigest:
-		if parts[1] != "sha256" {
-			err = fmt.Errorf("unexpected ref format: %v", ref)
-			return
-		}
-		digest = parts[2]
-	default:
-		err = fmt.Errorf("unexpected ref format: %v", ref)
+	tag = parts[1]
+	digest, err = crane.Digest(ref)
+	if err != nil {
+		err = fmt.Errorf("failed to get digest for ref %v: %v", ref, err)
 		return
 	}
 
