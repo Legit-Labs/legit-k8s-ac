@@ -178,5 +178,7 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 		}
 	}
 
+	log.Printf("image %v was verified for a valid provenance & legit score!")
+
 	return validation{Valid: true, Reason: "valid pod"}, nil
 }
