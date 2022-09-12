@@ -8,6 +8,6 @@ spec:
     - args:
         - sleep
         - "3600"
-      image: gallegit/hello-world 
+      image: gallegit/hello-world:latest
       name: hello-world-app
   restartPolicy: Always

@@ -53,7 +53,7 @@ delete:
 .PHONY: pod
 pod:
 	@echo "\n🚀 Deploying test pod..."
-	kubectl apply -f dev/manifests/pods/lifespan-seven.pod.yaml
+	kubectl apply -f dev/manifests/pods/hello-world.pod.yaml
 
 .PHONY: delete-pod
 delete-pod:
