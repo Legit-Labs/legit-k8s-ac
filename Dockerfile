@@ -18,5 +18,7 @@ FROM ubuntu AS run
 RUN apt update && apt install -y curl # mandatory for public certificates
 
 COPY --from=build /work/bin/admission-webhook /usr/local/bin/
+WORKDOR .
+COPY key.pub /
 
 CMD ["admission-webhook"]

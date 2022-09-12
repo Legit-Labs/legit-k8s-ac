@@ -2,9 +2,13 @@ package validation
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/crane"
+	legit_provenance "github.com/legit-labs/legit-provenance-verifier/legit-provenance"
+	legit_score_verifier "github.com/legit-labs/legit-score-verifier/legit-score-verifier"
+	registry_tools "github.com/legit-labs/registry-tools/registry-tools"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -85,6 +89,61 @@ func invalidPod(reason string) validation {
 	return validation{Valid: false, Reason: reason}
 }
 
+func stripShaPrefix(digest string) string {
+	parts := strings.Split(digest, ":")
+	if len(parts) != 2 {
+		log.Panicf("unexpected digest: %v", digest)
+	}
+	return parts[1]
+}
+
+func (v *Validator) validateProvenance(image ImageData) error {
+	imageName := image.Name
+	prefix := "provenance"
+	dstDir := "/tmp"
+	attestationPath, err := registry_tools.DownloadAttestation(imageName, prefix, dstDir, image.Digest)
+	if err != nil {
+		return fmt.Errorf("failed to download attestation: %v", err)
+	}
+
+	keyPath := "/key.pub"
+	digest := stripShaPrefix(image.Digest)
+	checks := legit_provenance.ProvenanceChecks{
+		RepoUrl:   "https://github.com/Legit-Labs/HelloWorld",
+		Branch:    "main",
+		BuilderId: "https://github.com/legit-labs/legit-provenance-generator/.github/workflows/legit_provenance_generator.yml@refs/tags/v0.1.0",
+		Tag:       image.Tag,
+	}
+
+	err = legit_provenance.Verify(attestationPath, keyPath, digest, checks)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (v *Validator) validateScore(image ImageData) error {
+	imageName := image.Name
+	prefix := "legit-score"
+	dstDir := "/tmp"
+	attestationPath, err := registry_tools.DownloadAttestation(imageName, prefix, dstDir, image.Digest)
+	if err != nil {
+		return fmt.Errorf("failed to download attestation: %v", err)
+	}
+
+	keyPath := "/key.pub"
+	digest := stripShaPrefix(image.Digest)
+	min_score := 6.5
+	repo := "TODO repo"
+	err = legit_score_verifier.Verify(attestationPath, keyPath, digest, min_score, repo)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ValidatePod returns true if a pod is valid
 func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 	var podName string
@@ -110,20 +169,13 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 	log := logrus.WithField("pod_name", podName)
 	log.Print("images: %v", images)
 
-	// list of all validations to be applied to the pod
-	validations := []podValidator{
-		nameValidator{v.Logger},
-	}
-
-	// apply all validations
-	for _, v := range validations {
-		var err error
-		vp, err := v.Validate(pod)
-		if err != nil {
-			return invalidPod(err.Error()), err
+	for _, i := range images {
+		if err := v.validateProvenance(i); err != nil {
+			return invalidPod(fmt.Sprintf("provenance validation for %v failed: %v", i, err)), err
 		}
-		if !vp.Valid {
-			return invalidPod(vp.Reason), err
+
+		if err := v.validateScore(i); err != nil {
+			return invalidPod(fmt.Sprintf("Legit score validation for %v failed: %v", i, err)), err
 		}
 	}
 
