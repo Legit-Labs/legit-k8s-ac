@@ -112,7 +112,6 @@ func (v *Validator) validateProvenance(image ImageData) error {
 		RepoUrl:   "https://github.com/Legit-Labs/HelloWorld",
 		Branch:    "main",
 		BuilderId: "https://github.com/legit-labs/legit-provenance-generator/.github/workflows/legit_provenance_generator.yml@refs/tags/v0.1.0",
-		Tag:       image.Tag,
 	}
 
 	err = legit_provenance.Verify(attestationPath, keyPath, digest, checks)
