@@ -1,15 +1,13 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  labels:
-    acme.com/lifespan-requested: "7"
-  name: lifespan-seven
+  name: hello-world-app
   namespace: apps
 spec:
   containers:
     - args:
         - sleep
         - "3600"
-      image: busybox
-      name: lifespan-seven
+      image: gallegit/hello-world 
+      name: hello-world-app
   restartPolicy: Always
