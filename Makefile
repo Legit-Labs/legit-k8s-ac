@@ -58,7 +58,7 @@ pod:
 .PHONY: delete-pod
 delete-pod:
 	@echo "\n♻️ Deleting test pod..."
-	kubectl delete -f dev/manifests/pods/lifespan-seven.pod.yaml
+	kubectl delete -f dev/manifests/pods/hello-world.pod.yaml
 
 .PHONY: bad-pod
 bad-pod:
