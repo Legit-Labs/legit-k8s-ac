@@ -3,8 +3,8 @@ module github.com/Legit-Labs/legit-k8s-ac
 go 1.18
 
 require (
-	github.com/legit-labs/legit-provenance-verifier v0.0.3-0.20221020121115-a46a35f800b6
-	github.com/legit-labs/legit-registry-tools v0.0.0-20221023105407-5a4c24425e89
+	github.com/legit-labs/legit-provenance-verifier v0.0.3-0.20221023155312-2cee685a6e17
+	github.com/legit-labs/legit-registry-tools v1.0.1-0.20221023155037-11c62af502be
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
 	k8s.io/api v0.25.3

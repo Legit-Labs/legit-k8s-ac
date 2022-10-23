@@ -3,7 +3,6 @@ package validation
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/legit-labs/legit-provenance-verifier/pkg/legit_provenance_verifier"
 	"github.com/legit-labs/legit-registry-tools/pkg/legit_registry_tools"
@@ -54,40 +53,12 @@ func invalidPod(reason string) validation {
 	return validation{Valid: false, Reason: reason}
 }
 
-func (v *Validator) fetchProvenance(imageRef *legit_registry_tools.ImageRef) ([]byte, error) {
-	var attestation []byte
-
-	err := withTmpDir(func(tmpDir string) error {
-		attestationPath, err := legit_registry_tools.DownloadAttestation(imageRef.Name, LEGIT_PROVENANCE_PREFIX, tmpDir, imageRef.Digest)
-		if err != nil {
-			return fmt.Errorf("failed to download attestation: %v", err)
-		}
-
-		attestation, err = os.ReadFile(attestationPath)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return attestation, nil
-}
 func (v *Validator) validateProvenance(imageRef *legit_registry_tools.ImageRef) error {
-	attestation, err := v.fetchProvenance(imageRef)
-	if err != nil {
-		return err
-	}
-
 	checks := legit_provenance_verifier.ProvenanceChecks{
 		Branch: "main", // TODO from config
 	}
 
-	err = legit_provenance_verifier.Verify(context.Background(), attestation, PROVENANCE_SIGNING_KEY, imageRef.PureDigest(), checks)
+	err := legit_provenance_verifier.VerifyRemote(context.Background(), imageRef, PROVENANCE_SIGNING_KEY, checks)
 	if err != nil {
 		return err
 	}
