@@ -1,16 +1,19 @@
 package validation
 
 import (
+	"context"
 	"fmt"
-	"log"
-	"strings"
+	"os"
 
-	"github.com/google/go-containerregistry/pkg/crane"
-	legit_provenance "github.com/legit-labs/legit-provenance-verifier/legit-provenance"
-	legit_score_verifier "github.com/legit-labs/legit-score-verifier/legit-score-verifier"
-	registry_tools "github.com/legit-labs/registry-tools/registry-tools"
+	"github.com/legit-labs/legit-provenance-verifier/pkg/legit_provenance_verifier"
+	"github.com/legit-labs/legit-registry-tools/pkg/legit_registry_tools"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+)
+
+const (
+	LEGIT_PROVENANCE_PREFIX = "legit-provenance"
+	PROVENANCE_SIGNING_KEY  = "/attestation-key.pub"
 )
 
 // Validator is a container for validation
@@ -34,108 +37,57 @@ type validation struct {
 	Reason string
 }
 
-type ImageData struct {
-	Name   string
-	Tag    string
-	Digest string
-}
-
-func getImageWithDigest(ref string) (name, digest string) {
-	parts := strings.Split(ref, "@")
-	name = parts[0]
-	digest = parts[1]
-	return
-}
-
-func getImageInfo(ref string) (name, tag, digest string, err error) {
-	if strings.Contains(ref, "@") { // referenced by digest
-		name, digest = getImageWithDigest(ref)
-		return
-	}
-	if !strings.Contains(ref, ":") { // no tag defaults to latest
-		ref += ":latest"
+func newImage(container corev1.Container, forceDigest bool) (*legit_registry_tools.ImageRef, error) {
+	if !forceDigest && !legit_registry_tools.HasDigest(container.Image) {
+		return nil, fmt.Errorf("referencing a tagged image (without digest) is not allowed")
 	}
 
-	parts := strings.Split(ref, ":")
-	name = parts[0]
-	tag = parts[1]
-	digest, err = crane.Digest(ref)
-	if err != nil {
-		err = fmt.Errorf("failed to get digest for ref %v: %v", ref, err)
-		return
-	}
-
-	return
-}
-
-func newImage(container corev1.Container, allowTagged bool) (*ImageData, error) {
-	name, tag, digest, err := getImageInfo(container.Image)
+	ref, err := legit_registry_tools.NewImageRef(container.Image)
 	if err != nil {
 		return nil, err
 	}
 
-	if !allowTagged && tag != "" {
-		return nil, fmt.Errorf("referencing a tagged image is not allowed (%v)", tag)
-	}
-
-	return &ImageData{
-		Name:   name,
-		Tag:    tag,
-		Digest: digest,
-	}, nil
+	return ref, nil
 }
 
 func invalidPod(reason string) validation {
 	return validation{Valid: false, Reason: reason}
 }
 
-func stripShaPrefix(digest string) string {
-	parts := strings.Split(digest, ":")
-	if len(parts) != 2 {
-		log.Panicf("unexpected digest: %v", digest)
-	}
-	return parts[1]
-}
+func (v *Validator) fetchProvenance(imageRef *legit_registry_tools.ImageRef) ([]byte, error) {
+	var attestation []byte
 
-func (v *Validator) validateProvenance(image ImageData) error {
-	imageName := image.Name
-	prefix := "provenance"
-	dstDir := "/tmp"
-	attestationPath, err := registry_tools.DownloadAttestation(imageName, prefix, dstDir, image.Digest)
+	err := withTmpDir(func(tmpDir string) error {
+		attestationPath, err := legit_registry_tools.DownloadAttestation(imageRef.Name, LEGIT_PROVENANCE_PREFIX, tmpDir, imageRef.Digest)
+		if err != nil {
+			return fmt.Errorf("failed to download attestation: %v", err)
+		}
+
+		attestation, err = os.ReadFile(attestationPath)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return fmt.Errorf("failed to download attestation: %v", err)
+		return nil, err
 	}
 
-	keyPath := "/key.pub"
-	digest := stripShaPrefix(image.Digest)
-	checks := legit_provenance.ProvenanceChecks{
-		RepoUrl:   "https://github.com/Legit-Labs/HelloWorld",
-		Branch:    "main",
-		BuilderId: "https://github.com/legit-labs/legit-provenance-generator/.github/workflows/legit_provenance_generator.yml@refs/tags/v0.1.0",
-	}
-
-	err = legit_provenance.Verify(attestationPath, keyPath, digest, checks)
+	return attestation, nil
+}
+func (v *Validator) validateProvenance(imageRef *legit_registry_tools.ImageRef) error {
+	attestation, err := v.fetchProvenance(imageRef)
 	if err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (v *Validator) validateScore(image ImageData) error {
-	imageName := image.Name
-	prefix := "legit-score"
-	dstDir := "/tmp"
-	attestationPath, err := registry_tools.DownloadAttestation(imageName, prefix, dstDir, image.Digest)
-	if err != nil {
-		return fmt.Errorf("failed to download attestation: %v", err)
+	checks := legit_provenance_verifier.ProvenanceChecks{
+		Branch: "main", // TODO from config
 	}
 
-	keyPath := "/key.pub"
-	digest := stripShaPrefix(image.Digest)
-	min_score := 6.5
-	repo := "TODO repo"
-	err = legit_score_verifier.Verify(attestationPath, keyPath, digest, min_score, repo)
+	err = legit_provenance_verifier.Verify(context.Background(), attestation, PROVENANCE_SIGNING_KEY, imageRef.PureDigest(), checks)
 	if err != nil {
 		return err
 	}
@@ -155,27 +107,24 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 	}
 
 	containers := pod.Spec.Containers
-	allowTagged := true // TODO from cli
-	images := make([]ImageData, 0, len(containers))
+	forceDigest := true // TODO from cli
+	imagesRefs := make([]*legit_registry_tools.ImageRef, 0, len(containers))
 	for _, container := range containers {
-		image, err := newImage(container, allowTagged)
+		imageRef, err := newImage(container, forceDigest)
 		if err != nil {
 			return invalidPod(fmt.Sprintf("image %v is invalid: %v", container.Name, err)), err
 		}
-		images = append(images, *image)
+		imagesRefs = append(imagesRefs, imageRef)
 	}
 
 	log := logrus.WithField("pod_name", podName)
-	log.Print("images: %v", images)
+	log.Print("images: %v", imagesRefs)
 
-	for _, i := range images {
+	for _, i := range imagesRefs {
 		if err := v.validateProvenance(i); err != nil {
 			return invalidPod(fmt.Sprintf("provenance validation for %v failed: %v", i, err)), err
 		}
 
-		if err := v.validateScore(i); err != nil {
-			return invalidPod(fmt.Sprintf("Legit score validation for %v failed: %v", i, err)), err
-		}
 		log.Printf("image %v was verified for a valid provenance & legit score!", i.Name)
 	}
 
