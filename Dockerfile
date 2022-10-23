@@ -19,6 +19,6 @@ RUN apt update && apt install -y curl # mandatory for public certificates
 
 COPY --from=build /work/bin/admission-webhook /usr/local/bin/
 WORKDIR .
-COPY key.pub /
+COPY key.pub /attestation-key.pub
 
 CMD ["admission-webhook"]
