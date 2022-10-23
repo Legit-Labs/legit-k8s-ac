@@ -12,6 +12,7 @@ build:
 .PHONY: docker-build
 docker-build:
 	@echo "\n📦 Building legit-security Docker image..."
+	cp /tmp/cosign.pub key.pub
 	DOCKER_BUILDKIT=1 docker build -t legit-security:latest .
 
 # From this point `kind` is required

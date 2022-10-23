@@ -96,7 +96,7 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 			return invalidPod(fmt.Sprintf("provenance validation for %v failed: %v", i, err)), err
 		}
 
-		log.Printf("image %v was verified for a valid provenance & legit score!", i.Name)
+		log.Printf("image %v was verified for a valid provenance!", i.Name)
 	}
 
 	return validation{Valid: true, Reason: "valid pod"}, nil
