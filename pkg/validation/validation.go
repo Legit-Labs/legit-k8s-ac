@@ -60,7 +60,7 @@ func (v *Validator) validateProvenance(imageRef *legit_registry_tools.ImageRef) 
 
 	err := legit_provenance_verifier.VerifyRemote(context.Background(), imageRef, PROVENANCE_SIGNING_KEY, checks)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to verify provenance for image [%v]: %v", *imageRef, err)
 	}
 
 	return nil
@@ -79,20 +79,20 @@ func (v *Validator) ValidatePod(pod *corev1.Pod) (validation, error) {
 
 	containers := pod.Spec.Containers
 	forceDigest := true // TODO from cli
-	imagesRefs := make([]*legit_registry_tools.ImageRef, 0, len(containers))
+	imagesRefs := make([]legit_registry_tools.ImageRef, 0, len(containers))
 	for _, container := range containers {
 		imageRef, err := newImage(container, forceDigest)
 		if err != nil {
 			return invalidPod(fmt.Sprintf("image %v is invalid: %v", container.Name, err)), err
 		}
-		imagesRefs = append(imagesRefs, imageRef)
+		imagesRefs = append(imagesRefs, *imageRef)
 	}
 
 	log := logrus.WithField("pod_name", podName)
 	log.Print("images: %v", imagesRefs)
 
 	for _, i := range imagesRefs {
-		if err := v.validateProvenance(i); err != nil {
+		if err := v.validateProvenance(&i); err != nil {
 			return invalidPod(fmt.Sprintf("provenance validation for %v failed: %v", i, err)), err
 		}
 
