@@ -61,15 +61,25 @@ delete-pod:
 	@echo "\n♻️ Deleting test pod..."
 	kubectl delete -f dev/manifests/pods/hello-world.pod.yaml
 
-.PHONY: bad-pod
-bad-pod:
-	@echo "\n🚀 Deploying \"bad\" pod..."
+.PHONY: no-provenance
+no-provenance:
+	@echo "\n🚀 Deploying \"no-provenance\" pod..."
 	kubectl apply -f dev/manifests/pods/bad-name.pod.yaml
 
-.PHONY: delete-bad-pod
-delete-bad-pod:
-	@echo "\n🚀 Deleting \"bad\" pod..."
+.PHONY: delete-no-provenance
+delete-no-provenance:
+	@echo "\n🚀 Deleting \"no-provenance\" pod..."
 	kubectl delete -f dev/manifests/pods/bad-name.pod.yaml
+
+.PHONY: bad-digest
+bad-digest:
+	@echo "\n🚀 Deploying \"bad-digest\" pod..."
+	kubectl apply -f dev/manifests/pods/bad-digest.pod.yaml
+
+.PHONY: delete-bad-digest
+delete-bad-digest:
+	@echo "\n🚀 Deleting \"bad-digest\" pod..."
+	kubectl delete -f dev/manifests/pods/bad-digest.pod.yaml
 
 .PHONY: taint
 taint:
